@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -6,16 +5,357 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>수학 문제 자동 채점기</title>
   <style>
-    body { font-family: Arial; background: #f0f0f0; padding: 20px; }
-    .problem { background: white; padding: 15px; margin: 10px; border-radius: 10px; box-shadow: 0 0 5px rgba(0,0,0,0.1); }
-    input, button { padding: 5px 10px; margin-top: 5px; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Arial', sans-serif;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 60px 20px 20px;
+    }
+    h2 {
+      color: #333;
+      text-align: center;
+    }
+    .problem {
+      background: white;
+      padding: 15px;
+      margin: 10px auto;
+      max-width: 700px;
+      border-radius: 10px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+    }
+    .problem b {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 1.1em;
+    }
+    input {
+      padding: 8px;
+      font-size: 1em;
+      width: 60%;
+      max-width: 300px;
+      margin-bottom: 5px;
+    }
+    button {
+      padding: 8px 15px;
+      font-size: 1em;
+      background-color: #007aff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #005fcc;
+    }
+    .solution {
+      color: green;
+      margin-top: 5px;
+    }
+    canvas {
+      width: 100%;
+      max-width: 300px;
+      height: auto;
+      background: white;
+      border: 1px solid #ccc;
+      margin-top: 8px;
+    }
+    .score {
+      position: fixed;
+      top: 10px;
+      left: 20px;
+      background: #fff;
+      padding: 8px 15px;
+      border-radius: 8px;
+      box-shadow: 0 0 6px rgba(0,0,0,0.2);
+      z-index: 999;
+    }
+    .settings {
+      position: fixed;
+      top: 10px;
+      right: 20px;
+      background: white;
+      padding: 8px 15px;
+      border-radius: 8px;
+      box-shadow: 0 0 6px rgba(0,0,0,0.2);
+      z-index: 999;
+    }
+    .settings button {
+      background-color: #555;
+      margin: 2px 0;
+    }
+    .settings button:hover {
+      background-color: #333;
+    }
+    #endScreen {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+      text-align: center;
+      z-index: 999;
+    }
+    #endScreen button {
+      margin: 5px;
+    }
+    .nav-buttons {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+    }
+    .nav-buttons button {
+      padding: 6px 14px;
+      font-size: 1em;
+      background-color: #555;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .nav-buttons button:hover {
+      background-color: #333;
+    }
   </style>
 </head>
 <body>
-<h1>수학 문제 자동 채점기</h1>
-<p>이 파일은 ChatGPT가 생성했습니다.</p>
+
+<div class="score">점수: <span id="score">0</span> / 40</div>
+
+<div class="settings">
+  <b>⚙️ 설정</b><br>
+  <button onclick="resetAll()">다시 시작</button><br>
+  <button onclick="resume()">이어보기</button>
+</div>
+
+<h2>인수분해 문제</h2>
+<div id="factor"></div>
+
+<h2>이차함수와 그래프 문제</h2>
+<div id="graph"></div>
+
+<div id="endScreen">
+  <h3>🎉 문제를 모두 풀었습니다!</h3>
+  <p>점수: <span id="finalScore"></span> / 40</p>
+  <button onclick="resetAll()">🔄 다시 풀기</button>
+  <button onclick="resume()">▶️ 이어 풀기</button>
+</div>
+
 <script>
-  alert('HTML 파일이 정상적으로 열렸습니다!');
+  let totalScore = 0;
+  let saveState = null;
+
+  const factorContainer = document.getElementById('factor');
+  const graphContainer = document.getElementById('graph');
+  const scoreDisplay = document.getElementById('score');
+  const finalScore = document.getElementById('finalScore');
+  const endScreen = document.getElementById('endScreen');
+
+  let factorProblems = [];
+  let graphProblems = [];
+
+  function updateScore() {
+    scoreDisplay.textContent = totalScore;
+  }
+
+  function checkComplete() {
+    if (totalScore >= 40) {
+      finalScore.textContent = totalScore;
+      endScreen.style.display = 'block';
+    }
+  }
+
+  function scrollToProblem(containerId, index) {
+    const container = document.getElementById(containerId);
+    const problems = container.querySelectorAll('.problem');
+    if (index >= 0 && index < problems.length) {
+      problems[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  function generateFactorProblem() {
+    factorProblems = [];
+    let problems = '';
+    for (let i = 1; i <= 20; i++) {
+      const a = Math.floor(Math.random() * 3) + 1;
+      const x1 = Math.floor(Math.random() * 8) - 4;
+      const x2 = Math.floor(Math.random() * 8) - 4;
+      const b = -a * (x1 + x2);
+      const c = a * x1 * x2;
+
+      const exp = `${a === 1 ? '' : a}x² ${b >= 0 ? '+ ' + b : '- ' + Math.abs(b)}x ${c >= 0 ? '+ ' + c : '- ' + Math.abs(c)}`;
+      const factorized = a === 1 ?
+        `(x ${x1 >= 0 ? '+ ' + x1 : '- ' + Math.abs(x1)})(x ${x2 >= 0 ? '+ ' + x2 : '- ' + Math.abs(x2)})` :
+        `${a}(x ${x1 >= 0 ? '+ ' + x1 : '- ' + Math.abs(x1)})(x ${x2 >= 0 ? '+ ' + x2 : '- ' + Math.abs(x2)})`;
+
+      factorProblems.push({ id: i, question: exp, answer: factorized, solved: false });
+
+      problems += `
+        <div class="problem" id="factorProblem${i}">
+          <b>${i}. ${exp} = ?</b>
+          <input type="text" id="factorAnswer${i}">
+          <button onclick="checkFactorAnswer(${i})">확인</button>
+          <div id="factorSolution${i}" class="solution"></div>
+
+          <div class="nav-buttons">
+            <button onclick="scrollToProblem('factor', ${i - 2})">◀ 이전 문제</button>
+            <button onclick="scrollToProblem('factor', ${i - 1})">▶ 현재 문제</button>
+          </div>
+        </div>
+      `;
+    }
+    factorContainer.innerHTML = problems;
+  }
+
+  function generateGraphProblem() {
+    graphProblems = [];
+    let problems = '';
+    for (let i = 1; i <= 20; i++) {
+      const a = (Math.random() > 0.5 ? 1 : -1) * (Math.floor(Math.random() * 2) + 1);
+      const b = Math.floor(Math.random() * 8) - 4;
+      const c = Math.floor(Math.random() * 8) - 4;
+
+      const exp = `${a === 1 ? '' : (a === -1 ? '-' : a)}x² ${b >= 0 ? '+ ' + b : '- ' + Math.abs(b)}x ${c >= 0 ? '+ ' + c : '- ' + Math.abs(c)}`;
+      const vertexX = (-b / (2 * a)).toFixed(2);
+      const vertexY = (a * vertexX * vertexX + b * vertexX + c).toFixed(2);
+
+      graphProblems.push({ id: i, question: exp, answer: `(${vertexX},${vertexY})`, solved: false });
+
+      problems += `
+        <div class="problem" id="graphProblem${i}">
+          <b>${i}. 함수 y = ${exp}의 꼭짓점은? (x, y)</b>
+          <input type="text" id="graphAnswer${i}">
+          <button onclick="checkGraphAnswer(${i})">확인</button>
+          <div id="graphSolution${i}" class="solution"></div>
+          <canvas id="canvas${i}" width="300" height="300"></canvas>
+
+          <div class="nav-buttons">
+            <button onclick="scrollToProblem('graph', ${i - 2})">◀ 이전 문제</button>
+            <button onclick="scrollToProblem('graph', ${i - 1})">▶ 현재 문제</button>
+          </div>
+        </div>
+      `;
+    }
+    graphContainer.innerHTML = problems;
+  }
+
+  function checkFactorAnswer(i) {
+    const problem = factorProblems.find(p => p.id === i);
+    const user = document.getElementById(`factorAnswer${i}`).value.replace(/\s+/g, '');
+    const correct = problem.answer.replace(/\s+/g, '');
+    const solution = document.getElementById(`factorSolution${i}`);
+    if (user === correct) {
+      if (!problem.solved) {
+        totalScore += 1;
+        problem.solved = true;
+      }
+      solution.innerHTML = "✅ 정답입니다!";
+    } else {
+      solution.innerHTML = `❌ 오답입니다. 정답: ${problem.answer}`;
+    }
+    updateScore();
+    checkComplete();
+  }
+
+  function checkGraphAnswer(i) {
+    const problem = graphProblems.find(p => p.id === i);
+    const user = document.getElementById(`graphAnswer${i}`).value.replace(/\s+/g, '');
+    const correct = problem.answer.replace(/\s+/g, '');
+    const solution = document.getElementById(`graphSolution${i}`);
+    if (user === correct) {
+      if (!problem.solved) {
+        totalScore += 1;
+        problem.solved = true;
+      }
+      solution.innerHTML = "✅ 정답입니다!";
+    } else {
+      solution.innerHTML = `❌ 오답입니다. 정답: ${problem.answer}`;
+    }
+    updateScore();
+    checkComplete();
+  }
+
+  function drawGraphs() {
+    for (let problem of graphProblems) {
+      const canvas = document.getElementById(`canvas${problem.id}`);
+      const ctx = canvas.getContext('2d');
+
+      const toX = x => canvas.width / 2 + x * 20;
+      const toY = y => canvas.height / 2 - y * 20;
+
+      const formula = problem.question.match(/([-]?\d*)x² ([+-] \d+)x ([+-] \d+)/);
+      const a = formula[1] === '' ? 1 : (formula[1] === '-' ? -1 : parseInt(formula[1]));
+      const b = parseInt(formula[2].replace(' ', ''));
+      const c = parseInt(formula[3].replace(' ', ''));
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.beginPath();
+      ctx.moveTo(0, canvas.height / 2);
+      ctx.lineTo(canvas.width, canvas.height / 2);
+      ctx.moveTo(canvas.width / 2, 0);
+      ctx.lineTo(canvas.width / 2, canvas.height);
+      ctx.strokeStyle = "#888";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.beginPath();
+      for (let x = -7; x <= 7; x += 0.05) {
+        const y = a * x * x + b * x + c;
+        const px = toX(x);
+        const py = toY(y);
+        if (x === -7) {
+          ctx.moveTo(px, py);
+        } else {
+          ctx.lineTo(px, py);
+        }
+      }
+      ctx.strokeStyle = "#d22";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  }
+
+  function resetAll() {
+    totalScore = 0;
+    endScreen.style.display = 'none';
+    generateFactorProblem();
+    generateGraphProblem();
+    setTimeout(drawGraphs, 300);
+    updateScore();
+  }
+
+  function resume() {
+    if (saveState) {
+      totalScore = saveState.score;
+      factorProblems = JSON.parse(JSON.stringify(saveState.factor));
+      graphProblems = JSON.parse(JSON.stringify(saveState.graph));
+      factorContainer.innerHTML = saveState.factorHTML;
+      graphContainer.innerHTML = saveState.graphHTML;
+      updateScore();
+      setTimeout(drawGraphs, 300);
+      endScreen.style.display = 'none';
+    } else {
+      alert("저장된 데이터가 없습니다.");
+    }
+  }
+
+  window.addEventListener('beforeunload', () => {
+    saveState = {
+      score: totalScore,
+      factor: JSON.parse(JSON.stringify(factorProblems)),
+      graph: JSON.parse(JSON.stringify(graphProblems)),
+      factorHTML: factorContainer.innerHTML,
+      graphHTML: graphContainer.innerHTML
+    };
+  });
+
+  resetAll();
 </script>
+
 </body>
 </html>
